@@ -1,5 +1,5 @@
 [package]
-name = "jma_request"
+name = "jma_xml_parser"
 version = "0.1.0"
 edition = "2018"
 
