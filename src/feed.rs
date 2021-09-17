@@ -68,22 +68,3 @@ impl Feed {
         result
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::feed::Feed;
-
-    #[test]
-    fn test_parse_feed() {
-        let result: Feed = serde_xml_rs::from_str(include_str!("../regular_l.xml")).unwrap();
-        let mut map = result.into_titled_entries(&["府県天気予報（Ｒ１）"], false);
-        let list = map.get_mut("府県天気予報（Ｒ１）").unwrap();
-        list.retain(|entry| entry.content.value == "【福岡県府県天気予報】");
-        let list = map.get("府県天気予報（Ｒ１）").unwrap();
-        dbg!(list.len());
-        dbg!(list);
-        for (i, entry) in list.iter().enumerate() {
-            println!("curl {} -o {}.xml", entry.link.href, i);
-        }
-    }
-}

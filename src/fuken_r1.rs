@@ -555,17 +555,3 @@ pub struct Area {
     #[serde(alias = "Code")]
     pub code: usize,
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::fuken_r1::Report;
-
-    #[test]
-    fn test() {
-        let _ = dbg!(Report::from_str(include_str!("../20210912194440_0_VPFD51_400000.xml")));
-        for i in 0..22 {
-            let s = std::fs::read_to_string(&format!("{}.xml", i)).unwrap();
-            Report::from_str(&s).unwrap();
-        }
-    }
-}
