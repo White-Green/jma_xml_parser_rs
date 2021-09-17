@@ -1,4 +1,3 @@
-
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Local};
@@ -57,7 +56,11 @@ pub struct Rights {
 }
 
 impl Feed {
-    pub fn into_titled_entries(self, title_filters: &[impl AsRef<str>], is_title_blacklist: bool) -> HashMap<String, Vec<Entry>> {
+    pub fn from_str(s: &str) -> anyhow::Result<Self> {
+        Ok(serde_xml_rs::from_str(s)?)
+    }
+
+    pub fn into_titled_entries<S: AsRef<str>>(self, title_filters: &[S], is_title_blacklist: bool) -> HashMap<String, Vec<Entry>> {
         let title_filters = title_filters.iter().map(AsRef::as_ref).collect::<HashSet<_>>();
         let mut result: HashMap<_, Vec<_>> = HashMap::new();
         for entry in self.entries {

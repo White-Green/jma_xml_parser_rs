@@ -44,11 +44,16 @@ pub enum MeteorologicalInfoListItem {
     TemperatureForecast(Vec<AreaForecast<TemperatureForecast>>),
     /// 3時間毎の気温
     TemperatureTimeSeries(Vec<AreaForecast<TemperatureTimeSeries>>),
+    /// 独自予報
+    Proprietary(Vec<MeteorologicalInfo>),
 }
 
 impl MeteorologicalInfoListItem {
     fn from_tmp(tmp: MeteorologicalInfosTmp) -> anyhow::Result<Vec<Self>> {
-        let MeteorologicalInfosTmp { _type, time_series_info } = tmp;
+        let MeteorologicalInfosTmp { _type, time_series_info, meteorological_info, } = tmp;
+        if _type == "独自予報" {
+            return Ok(vec![MeteorologicalInfoListItem::Proprietary(meteorological_info)]);
+        }
         let mut result = Vec::new();
         for time_series_info in time_series_info {
             let TimeSeriesInfo { time_defines: TimeDefines { items: mut time_defines }, items } = time_series_info;
@@ -201,8 +206,7 @@ impl MeteorologicalInfoListItem {
                         }
                     }
                 }
-                "独自予報" => { todo!("独自予報") }
-                _ => {}
+                s => return Err(anyhow::Error::msg(format!("unknown TimeSeriesInfo::_type {}", s)))
             }
         }
         Ok(result)
@@ -325,7 +329,43 @@ struct MeteorologicalInfosTmp {
     #[serde(alias = "type")]
     _type: String,
     #[serde(alias = "TimeSeriesInfo")]
+    #[serde(default)]
     time_series_info: Vec<TimeSeriesInfo>,
+    #[serde(alias = "MeteorologicalInfo")]
+    #[serde(default)]
+    meteorological_info: Vec<MeteorologicalInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MeteorologicalInfo {
+    #[serde(alias = "DateTime")]
+    pub date_time: DateTime<Local>,
+    #[serde(alias = "Duration")]
+    pub duration: String,
+    #[serde(alias = "Item")]
+    pub item: MeteorologicalInfoItem,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MeteorologicalInfoItem {
+    #[serde(alias = "Kind")]
+    pub kind: MeteorologicalInfoKind,
+    #[serde(alias = "Area")]
+    pub area: Area,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MeteorologicalInfoKind {
+    #[serde(alias = "Property")]
+    pub property: MeteorologicalInfoProperty,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MeteorologicalInfoProperty {
+    #[serde(alias = "Type")]
+    pub _type: String,
+    #[serde(alias = "Text")]
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -411,7 +451,8 @@ pub struct WeatherForecastPart {
     #[serde(alias = "Base")]
     pub base: WeatherForecastBase,
     #[serde(alias = "Temporary")]
-    pub temporary: Option<Temporary>,
+    #[serde(default)]
+    pub temporary: Vec<Temporary>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
