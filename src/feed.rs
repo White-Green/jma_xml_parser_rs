@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Local};
 use serde_derive::Deserialize;
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize)]
 pub struct Feed {
@@ -56,10 +57,6 @@ pub struct Rights {
 }
 
 impl Feed {
-    pub fn from_str(s: &str) -> anyhow::Result<Self> {
-        Ok(serde_xml_rs::from_str(s)?)
-    }
-
     pub fn into_titled_entries<S: AsRef<str>>(self, title_filters: &[S], is_title_blacklist: bool) -> HashMap<String, Vec<Entry>> {
         let title_filters = title_filters.iter().map(AsRef::as_ref).collect::<HashSet<_>>();
         let mut result: HashMap<_, Vec<_>> = HashMap::new();
@@ -69,5 +66,13 @@ impl Feed {
             }
         }
         result
+    }
+}
+
+impl FromStr for Feed {
+    type Err = serde_xml_rs::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_xml_rs::from_str(s)
     }
 }

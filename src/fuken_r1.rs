@@ -4,6 +4,7 @@ use std::convert::TryInto;
 
 use chrono::{DateTime, Local};
 use serde_derive::Deserialize;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Report {
@@ -13,11 +14,6 @@ pub struct Report {
 }
 
 impl Report {
-    pub fn from_str(s: &str) -> anyhow::Result<Self> {
-        let tmp: ReportTmp = serde_xml_rs::from_str(s)?;
-        Report::from_tmp(tmp)
-    }
-
     fn from_tmp(tmp: ReportTmp) -> anyhow::Result<Self> {
         let ReportTmp { control, head, body: BodyTmp { meteorological_infos } } = tmp;
         let mut body = Vec::new();
@@ -29,6 +25,15 @@ impl Report {
             head,
             body,
         })
+    }
+}
+
+impl FromStr for Report {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tmp: ReportTmp = serde_xml_rs::from_str(s)?;
+        Report::from_tmp(tmp)
     }
 }
 
