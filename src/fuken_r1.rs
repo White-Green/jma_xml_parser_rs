@@ -4,13 +4,15 @@ use std::convert::TryInto;
 
 use chrono::{DateTime, Local};
 use serde_derive::Deserialize;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct Report {
     pub control: Control,
     pub head: Head,
-    pub body: Vec<MeteorologicalInfoListItem>,
+    pub body: Vec<MeteorologicalInfoList>,
+    pub proprietary_forecasts: Vec<MeteorologicalInfo>,
 }
 
 impl Report {
@@ -22,17 +24,122 @@ impl Report {
                 meteorological_infos,
             },
         } = tmp;
-        let mut body = Vec::new();
+        let mut body_map = HashMap::<
+            usize,
+            (
+                Area,
+                Option<Vec<WeatherForecast>>,
+                Option<Vec<Precipitation>>,
+                Option<Vec<WeatherAndWindForecast>>,
+                Option<Vec<TemperatureForecast>>,
+                Option<Vec<TemperatureTimeSeries>>,
+            ),
+        >::new();
+        let mut proprietary_forecasts = Vec::new();
         for i in meteorological_infos
             .into_iter()
             .map(MeteorologicalInfoListItem::from_tmp)
         {
-            body.extend(i?);
+            for info in i? {
+                match info {
+                    MeteorologicalInfoListItem::WeatherForecast(list) => {
+                        for AreaForecast { area, forecast } in list {
+                            if body_map
+                                .entry(area.code)
+                                .or_insert((area, None, None, None, None, None))
+                                .1
+                                .replace(forecast)
+                                .is_some()
+                            {
+                                return Err(anyhow::Error::msg("duplicated forecast item"));
+                            }
+                        }
+                    }
+                    MeteorologicalInfoListItem::ProbabilityOfPrecipitation(list) => {
+                        for AreaForecast { area, forecast } in list {
+                            if body_map
+                                .entry(area.code)
+                                .or_insert((area, None, None, None, None, None))
+                                .2
+                                .replace(forecast)
+                                .is_some()
+                            {
+                                return Err(anyhow::Error::msg("duplicated forecast item"));
+                            }
+                        }
+                    }
+                    MeteorologicalInfoListItem::WeatherAndWindTimeSeries(list) => {
+                        for AreaForecast { area, forecast } in list {
+                            if body_map
+                                .entry(area.code)
+                                .or_insert((area, None, None, None, None, None))
+                                .3
+                                .replace(forecast)
+                                .is_some()
+                            {
+                                return Err(anyhow::Error::msg("duplicated forecast item"));
+                            }
+                        }
+                    }
+                    MeteorologicalInfoListItem::TemperatureForecast(list) => {
+                        for AreaForecast { area, forecast } in list {
+                            if body_map
+                                .entry(area.code)
+                                .or_insert((area, None, None, None, None, None))
+                                .4
+                                .replace(forecast)
+                                .is_some()
+                            {
+                                return Err(anyhow::Error::msg("duplicated forecast item"));
+                            }
+                        }
+                    }
+                    MeteorologicalInfoListItem::TemperatureTimeSeries(list) => {
+                        for AreaForecast { area, forecast } in list {
+                            if body_map
+                                .entry(area.code)
+                                .or_insert((area, None, None, None, None, None))
+                                .5
+                                .replace(forecast)
+                                .is_some()
+                            {
+                                return Err(anyhow::Error::msg("duplicated forecast item"));
+                            }
+                        }
+                    }
+                    MeteorologicalInfoListItem::Proprietary(list) => {
+                        proprietary_forecasts.extend(list);
+                    }
+                }
+            }
+        }
+        let mut body = Vec::with_capacity(body_map.len());
+        for (
+            _,
+            (
+                area,
+                weather_forecast,
+                probability_of_precipitation,
+                weather_and_wind_time_series,
+                temperature_forecast,
+                temperature_time_series,
+            ),
+        ) in body_map
+        {
+            body.push(MeteorologicalInfoList {
+                area,
+                weather_forecast,
+                probability_of_precipitation,
+                weather_and_wind_time_series,
+                temperature_forecast,
+                temperature_time_series,
+            });
         }
         Ok(Report {
             control,
             head,
             body,
+            proprietary_forecasts,
         })
     }
 }
@@ -47,7 +154,22 @@ impl FromStr for Report {
 }
 
 #[derive(Debug, Clone)]
-pub enum MeteorologicalInfoListItem {
+pub struct MeteorologicalInfoList {
+    pub area: Area,
+    /// 今日,明日,(明後日)の天気,風,波
+    pub weather_forecast: Option<Vec<WeatherForecast>>,
+    /// 6時間毎ぐらいの降水確率
+    pub probability_of_precipitation: Option<Vec<Precipitation>>,
+    /// 3時間毎の天気,風
+    pub weather_and_wind_time_series: Option<Vec<WeatherAndWindForecast>>,
+    /// 向こう数日の気温
+    pub temperature_forecast: Option<Vec<TemperatureForecast>>,
+    /// 3時間毎の気温
+    pub temperature_time_series: Option<Vec<TemperatureTimeSeries>>,
+}
+
+#[derive(Debug, Clone)]
+enum MeteorologicalInfoListItem {
     /// 今日,明日,(明後日)の天気,風,波
     WeatherForecast(Vec<AreaForecast<WeatherForecast>>),
     /// 6時間毎ぐらいの降水確率
@@ -189,7 +311,9 @@ impl MeteorologicalInfoListItem {
                                         }
                                     }
                                     _ => {
-                                        return Err(anyhow::Error::msg("invalid count of property"))
+                                        return Err(anyhow::Error::msg(
+                                            "invalid count of property",
+                                        ));
                                     }
                                 }
                             }
@@ -363,7 +487,7 @@ impl MeteorologicalInfoListItem {
                     return Err(anyhow::Error::msg(format!(
                         "unknown TimeSeriesInfo::_type {}",
                         s
-                    )))
+                    )));
                 }
             }
         }
@@ -372,9 +496,9 @@ impl MeteorologicalInfoListItem {
 }
 
 #[derive(Debug, Clone)]
-pub struct AreaForecast<T> {
-    pub area: Area,
-    pub forecast: Vec<T>,
+struct AreaForecast<T> {
+    area: Area,
+    forecast: Vec<T>,
 }
 
 #[derive(Debug, Clone)]
