@@ -15,9 +15,18 @@ pub struct Report {
 
 impl Report {
     fn from_tmp(tmp: ReportTmp) -> anyhow::Result<Self> {
-        let ReportTmp { control, head, body: BodyTmp { meteorological_infos } } = tmp;
+        let ReportTmp {
+            control,
+            head,
+            body: BodyTmp {
+                meteorological_infos,
+            },
+        } = tmp;
         let mut body = Vec::new();
-        for i in meteorological_infos.into_iter().map(MeteorologicalInfoListItem::from_tmp) {
+        for i in meteorological_infos
+            .into_iter()
+            .map(MeteorologicalInfoListItem::from_tmp)
+        {
             body.extend(i?);
         }
         Ok(Report {
@@ -55,13 +64,25 @@ pub enum MeteorologicalInfoListItem {
 
 impl MeteorologicalInfoListItem {
     fn from_tmp(tmp: MeteorologicalInfosTmp) -> anyhow::Result<Vec<Self>> {
-        let MeteorologicalInfosTmp { _type, time_series_info, meteorological_info, } = tmp;
+        let MeteorologicalInfosTmp {
+            _type,
+            time_series_info,
+            meteorological_info,
+        } = tmp;
         if _type == "独自予報" {
-            return Ok(vec![MeteorologicalInfoListItem::Proprietary(meteorological_info)]);
+            return Ok(vec![MeteorologicalInfoListItem::Proprietary(
+                meteorological_info,
+            )]);
         }
         let mut result = Vec::new();
         for time_series_info in time_series_info {
-            let TimeSeriesInfo { time_defines: TimeDefines { items: mut time_defines }, items } = time_series_info;
+            let TimeSeriesInfo {
+                time_defines:
+                    TimeDefines {
+                        items: mut time_defines,
+                    },
+                items,
+            } = time_series_info;
             time_defines.sort_by_key(|t| t.time_id);
             match _type.as_str() {
                 "区域予報" => {
@@ -69,14 +90,43 @@ impl MeteorologicalInfoListItem {
                         "天気" | "波" | "風" => {
                             let mut forecasts = Vec::new();
                             for Item { kind, area } in items {
-                                let properties = kind.into_iter().flat_map(|kind| kind.property).collect::<Vec<_>>();
+                                let properties = kind
+                                    .into_iter()
+                                    .flat_map(|kind| kind.property)
+                                    .collect::<Vec<_>>();
                                 match properties.len() {
                                     3 => {
                                         let mut properties: [_; 3] = properties.try_into().unwrap();
                                         properties.sort_by_key(|p| p._type.clone());
-                                        if let [Property { _type: weather_type, detail_forecast: Some(DetailForecast { mut weather_forecast_part, .. }), weather_part: Some(WeatherPart { mut weather }), weather_code_part: Some(WeatherCodePart { mut weather_code }), .. },
-                                        Property { _type: wave_height_type, detail_forecast: Some(DetailForecast { mut wave_height_forecast_part, .. }), .. },
-                                        Property { _type: wind_type, detail_forecast: Some(DetailForecast { mut wind_forecast_part, .. }), .. }] = properties {
+                                        if let [Property {
+                                            _type: weather_type,
+                                            detail_forecast:
+                                                Some(DetailForecast {
+                                                    mut weather_forecast_part,
+                                                    ..
+                                                }),
+                                            weather_part: Some(WeatherPart { mut weather }),
+                                            weather_code_part:
+                                                Some(WeatherCodePart { mut weather_code }),
+                                            ..
+                                        }, Property {
+                                            _type: wave_height_type,
+                                            detail_forecast:
+                                                Some(DetailForecast {
+                                                    mut wave_height_forecast_part,
+                                                    ..
+                                                }),
+                                            ..
+                                        }, Property {
+                                            _type: wind_type,
+                                            detail_forecast:
+                                                Some(DetailForecast {
+                                                    mut wind_forecast_part,
+                                                    ..
+                                                }),
+                                            ..
+                                        }] = properties
+                                        {
                                             assert_eq!(weather_type, "天気");
                                             assert_eq!(wave_height_type, "波");
                                             assert_eq!(wind_type, "風");
@@ -88,19 +138,40 @@ impl MeteorologicalInfoListItem {
                                             let forecast = time_defines.iter().zip(weather_forecast_part).zip(weather).zip(weather_code).zip(wave_height_forecast_part).zip(wind_forecast_part)
                                                 .map(|(((((time_define, weather_text), weather), weather_code), wave_height), wind)| WeatherForecast { time: time_define.clone(), weather_text, weather, weather_code, wind, wave_height: Some(wave_height) })
                                                 .collect();
-                                            forecasts.push(AreaForecast {
-                                                area,
-                                                forecast,
-                                            });
+                                            forecasts.push(AreaForecast { area, forecast });
                                         } else {
-                                            return Err(anyhow::Error::msg("Property has no some property"));
+                                            return Err(anyhow::Error::msg(
+                                                "Property has no some property",
+                                            ));
                                         }
                                     }
                                     2 => {
-                                        let mut properties: [_; 2] = properties.try_into().map_err(|_| anyhow::Error::msg("invalid count of property"))?;
+                                        let mut properties: [_; 2] =
+                                            properties.try_into().map_err(|_| {
+                                                anyhow::Error::msg("invalid count of property")
+                                            })?;
                                         properties.sort_by_key(|p| p._type.clone());
-                                        if let [Property { _type: weather_type, detail_forecast: Some(DetailForecast { mut weather_forecast_part, .. }), weather_part: Some(WeatherPart { mut weather }), weather_code_part: Some(WeatherCodePart { mut weather_code }), .. },
-                                        Property { _type: wind_type, detail_forecast: Some(DetailForecast { mut wind_forecast_part, .. }), .. }] = properties {
+                                        if let [Property {
+                                            _type: weather_type,
+                                            detail_forecast:
+                                                Some(DetailForecast {
+                                                    mut weather_forecast_part,
+                                                    ..
+                                                }),
+                                            weather_part: Some(WeatherPart { mut weather }),
+                                            weather_code_part:
+                                                Some(WeatherCodePart { mut weather_code }),
+                                            ..
+                                        }, Property {
+                                            _type: wind_type,
+                                            detail_forecast:
+                                                Some(DetailForecast {
+                                                    mut wind_forecast_part,
+                                                    ..
+                                                }),
+                                            ..
+                                        }] = properties
+                                        {
                                             assert_eq!(weather_type, "天気");
                                             assert_eq!(wind_type, "風");
                                             weather_forecast_part.sort_by_key(|w| w.ref_id);
@@ -110,15 +181,16 @@ impl MeteorologicalInfoListItem {
                                             let forecast = time_defines.iter().zip(weather_forecast_part).zip(weather).zip(weather_code).zip(wind_forecast_part)
                                                 .map(|((((time_define, weather_text), weather), weather_code), wind)| WeatherForecast { time: time_define.clone(), weather_text, weather, weather_code, wind, wave_height: None })
                                                 .collect();
-                                            forecasts.push(AreaForecast {
-                                                area,
-                                                forecast,
-                                            });
+                                            forecasts.push(AreaForecast { area, forecast });
                                         } else {
-                                            return Err(anyhow::Error::msg("Property has no some property"));
+                                            return Err(anyhow::Error::msg(
+                                                "Property has no some property",
+                                            ));
                                         }
                                     }
-                                    _ => return Err(anyhow::Error::msg("invalid count of property")),
+                                    _ => {
+                                        return Err(anyhow::Error::msg("invalid count of property"))
+                                    }
                                 }
                             }
                             result.push(MeteorologicalInfoListItem::WeatherForecast(forecasts));
@@ -126,92 +198,173 @@ impl MeteorologicalInfoListItem {
                         "降水確率" => {
                             let mut forecasts = Vec::new();
                             for Item { kind, area } in items {
-                                let [property]: [_; 1] = kind.into_iter().flat_map(|kind| kind.property).collect::<Vec<_>>().try_into().map_err(|_| anyhow::Error::msg("invalid count of property"))?;
-                                if let Property { _type, probability_of_precipitation_part: Some(ProbabilityOfPrecipitationPart { mut values }), .. } = property {
+                                let [property]: [_; 1] = kind
+                                    .into_iter()
+                                    .flat_map(|kind| kind.property)
+                                    .collect::<Vec<_>>()
+                                    .try_into()
+                                    .map_err(|_| anyhow::Error::msg("invalid count of property"))?;
+                                if let Property {
+                                    _type,
+                                    probability_of_precipitation_part:
+                                        Some(ProbabilityOfPrecipitationPart { mut values }),
+                                    ..
+                                } = property
+                                {
                                     values.sort_by_key(|p| p.ref_id);
-                                    let forecast = time_defines.iter().zip(values).map(|(time, probability)| Precipitation { time: time.clone(), probability }).collect();
-                                    forecasts.push(AreaForecast {
-                                        area,
-                                        forecast,
-                                    });
+                                    let forecast = time_defines
+                                        .iter()
+                                        .zip(values)
+                                        .map(|(time, probability)| Precipitation {
+                                            time: time.clone(),
+                                            probability,
+                                        })
+                                        .collect();
+                                    forecasts.push(AreaForecast { area, forecast });
                                 } else {
-                                    return Err(anyhow::Error::msg("Property has no some property"));
+                                    return Err(anyhow::Error::msg(
+                                        "Property has no some property",
+                                    ));
                                 }
                             }
-                            result.push(MeteorologicalInfoListItem::ProbabilityOfPrecipitation(forecasts));
+                            result.push(MeteorologicalInfoListItem::ProbabilityOfPrecipitation(
+                                forecasts,
+                            ));
                         }
                         "３時間内卓越天気" | "３時間内代表風" => {
                             let mut forecasts = Vec::new();
                             for Item { kind, area } in items {
-                                let mut properties: [_; 2] = kind.into_iter().flat_map(|kind| kind.property).collect::<Vec<_>>().try_into().map_err(|_| anyhow::Error::msg("invalid count of property"))?;
+                                let mut properties: [_; 2] = kind
+                                    .into_iter()
+                                    .flat_map(|kind| kind.property)
+                                    .collect::<Vec<_>>()
+                                    .try_into()
+                                    .map_err(|_| anyhow::Error::msg("invalid count of property"))?;
                                 properties.sort_by_key(|p| p._type.clone());
-                                if let [Property { _type: wind_type, wind_direction_part: Some(WindDirectionPart { values: mut wind_directions }), wind_speed_part: Some(WindSpeedPart { values: mut wind_speeds }), .. },
-                                Property { _type: weather_type, weather_part: Some(WeatherPart { mut weather }), .. }] = properties {
+                                if let [Property {
+                                    _type: wind_type,
+                                    wind_direction_part:
+                                        Some(WindDirectionPart {
+                                            values: mut wind_directions,
+                                        }),
+                                    wind_speed_part:
+                                        Some(WindSpeedPart {
+                                            values: mut wind_speeds,
+                                        }),
+                                    ..
+                                }, Property {
+                                    _type: weather_type,
+                                    weather_part: Some(WeatherPart { mut weather }),
+                                    ..
+                                }] = properties
+                                {
                                     assert_eq!(wind_type, "３時間内代表風");
                                     assert_eq!(weather_type, "３時間内卓越天気");
                                     wind_directions.sort_by_key(|w| w.ref_id);
                                     wind_speeds.sort_by_key(|w| w.ref_id);
                                     weather.sort_by_key(|w| w.ref_id);
-                                    let forecast = time_defines.iter().zip(wind_directions).zip(wind_speeds).zip(weather)
-                                        .map(|(((time, wind_direction), wind_speed), weather)| WeatherAndWindForecast {
-                                            time: time.clone(),
-                                            weather,
-                                            wind_direction,
-                                            wind_speed,
-                                        }).collect();
-                                    forecasts.push(AreaForecast {
-                                        area,
-                                        forecast,
-                                    });
+                                    let forecast = time_defines
+                                        .iter()
+                                        .zip(wind_directions)
+                                        .zip(wind_speeds)
+                                        .zip(weather)
+                                        .map(|(((time, wind_direction), wind_speed), weather)| {
+                                            WeatherAndWindForecast {
+                                                time: time.clone(),
+                                                weather,
+                                                wind_direction,
+                                                wind_speed,
+                                            }
+                                        })
+                                        .collect();
+                                    forecasts.push(AreaForecast { area, forecast });
                                 } else {
-                                    return Err(anyhow::Error::msg("Property has no some property"));
+                                    return Err(anyhow::Error::msg(
+                                        "Property has no some property",
+                                    ));
                                 }
                             }
-                            result.push(MeteorologicalInfoListItem::WeatherAndWindTimeSeries(forecasts));
+                            result.push(MeteorologicalInfoListItem::WeatherAndWindTimeSeries(
+                                forecasts,
+                            ));
                         }
                         _ => {}
                     }
                 }
-                "地点予報" => {
-                    match items[0].kind[0].property[0]._type.as_str() {
-                        "３時間毎気温" => {
-                            let mut forecasts = Vec::new();
-                            for Item { kind, area } in items {
-                                let [property]: [_; 1] = kind.into_iter().flat_map(|kind| kind.property).collect::<Vec<_>>().try_into().map_err(|_| anyhow::Error::msg("invalid count of property"))?;
-                                if let Property { _type, temperature_part: Some(TemperaturePart { mut values }), .. } = property {
-                                    values.sort_by_key(|p| p.ref_id);
-                                    let forecast = time_defines.iter().zip(values).map(|(time, temperature)| TemperatureTimeSeries { time: time.clone(), temperature }).collect();
-                                    forecasts.push(AreaForecast {
-                                        area,
-                                        forecast,
-                                    });
-                                } else {
-                                    return Err(anyhow::Error::msg("Property has no some property"));
-                                }
+                "地点予報" => match items[0].kind[0].property[0]._type.as_str() {
+                    "３時間毎気温" => {
+                        let mut forecasts = Vec::new();
+                        for Item { kind, area } in items {
+                            let [property]: [_; 1] = kind
+                                .into_iter()
+                                .flat_map(|kind| kind.property)
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .map_err(|_| anyhow::Error::msg("invalid count of property"))?;
+                            if let Property {
+                                _type,
+                                temperature_part: Some(TemperaturePart { mut values }),
+                                ..
+                            } = property
+                            {
+                                values.sort_by_key(|p| p.ref_id);
+                                let forecast = time_defines
+                                    .iter()
+                                    .zip(values)
+                                    .map(|(time, temperature)| TemperatureTimeSeries {
+                                        time: time.clone(),
+                                        temperature,
+                                    })
+                                    .collect();
+                                forecasts.push(AreaForecast { area, forecast });
+                            } else {
+                                return Err(anyhow::Error::msg("Property has no some property"));
                             }
-                            result.push(MeteorologicalInfoListItem::TemperatureTimeSeries(forecasts));
                         }
-                        _ => {
-                            let mut forecasts = Vec::new();
-                            for Item { kind, area } in items {
-                                if kind.iter().flat_map(|kind| &kind.property).any(|Property { temperature_part, .. }| temperature_part.is_none() || temperature_part.as_ref().unwrap().values.is_empty()) {
-                                    return Err(anyhow::Error::msg("Property has no some property"));
-                                }
-                                let forecast = time_defines.iter().zip(kind.into_iter().flat_map(|kind| kind.property)).map(|(time, Property { _type, temperature_part, .. })| TemperatureForecast {
-                                    time: time.clone(),
-                                    _type,
-                                    temperature: temperature_part.unwrap().values.remove(0),
-                                }).collect();
-                                forecasts.push(AreaForecast {
-                                    area,
-                                    forecast,
-                                });
-                            }
-                            result.push(MeteorologicalInfoListItem::TemperatureForecast(forecasts));
-                        }
+                        result.push(MeteorologicalInfoListItem::TemperatureTimeSeries(forecasts));
                     }
+                    _ => {
+                        let mut forecasts = Vec::new();
+                        for Item { kind, area } in items {
+                            if kind.iter().flat_map(|kind| &kind.property).any(
+                                |Property {
+                                     temperature_part, ..
+                                 }| {
+                                    temperature_part.is_none()
+                                        || temperature_part.as_ref().unwrap().values.is_empty()
+                                },
+                            ) {
+                                return Err(anyhow::Error::msg("Property has no some property"));
+                            }
+                            let forecast = time_defines
+                                .iter()
+                                .zip(kind.into_iter().flat_map(|kind| kind.property))
+                                .map(
+                                    |(
+                                        time,
+                                        Property {
+                                            _type,
+                                            temperature_part,
+                                            ..
+                                        },
+                                    )| TemperatureForecast {
+                                        time: time.clone(),
+                                        _type,
+                                        temperature: temperature_part.unwrap().values.remove(0),
+                                    },
+                                )
+                                .collect();
+                            forecasts.push(AreaForecast { area, forecast });
+                        }
+                        result.push(MeteorologicalInfoListItem::TemperatureForecast(forecasts));
+                    }
+                },
+                s => {
+                    return Err(anyhow::Error::msg(format!(
+                        "unknown TimeSeriesInfo::_type {}",
+                        s
+                    )))
                 }
-                s => return Err(anyhow::Error::msg(format!("unknown TimeSeriesInfo::_type {}", s)))
             }
         }
         Ok(result)
